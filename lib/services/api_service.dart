@@ -14,13 +14,21 @@ class ApiService {
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _token = prefs.getString('auth_token');
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+
+    if (!rememberMe) {
+      // If remember me is disabled, do not restore token from disk across cold starts
+      await prefs.remove('auth_token');
+      _token = null;
+    } else {
+      _token = prefs.getString('auth_token');
+    }
   }
 
-  Future<void> setToken(String? token) async {
+  Future<void> setToken(String? token, {bool persist = true}) async {
     _token = token;
     final prefs = await SharedPreferences.getInstance();
-    if (token != null) {
+    if (token != null && persist) {
       await prefs.setString('auth_token', token);
     } else {
       await prefs.remove('auth_token');
@@ -49,16 +57,17 @@ class ApiService {
       final uri = Uri.parse(url);
       return uri.replace(queryParameters: cleanParams);
     }
+
     return Uri.parse(url);
   }
 
   Future<dynamic> get(String path, {Map<String, dynamic>? queryParams}) async {
     final uri = _buildUri(path, queryParams);
-    final response = await http.get(uri, headers: _headers());
+    final response = await http.get(uri, headers: _headers(isJson: false));
     return _handleResponse(response);
   }
 
-  Future<dynamic> post(String path, dynamic body) async {
+  Future<dynamic> post(String path, Map<String, dynamic> body) async {
     final uri = _buildUri(path);
     final response = await http.post(
       uri,
@@ -68,7 +77,7 @@ class ApiService {
     return _handleResponse(response);
   }
 
-  Future<dynamic> put(String path, dynamic body) async {
+  Future<dynamic> put(String path, Map<String, dynamic> body) async {
     final uri = _buildUri(path);
     final response = await http.put(
       uri,
@@ -80,7 +89,7 @@ class ApiService {
 
   Future<dynamic> delete(String path) async {
     final uri = _buildUri(path);
-    final response = await http.delete(uri, headers: _headers());
+    final response = await http.delete(uri, headers: _headers(isJson: false));
     return _handleResponse(response);
   }
 
@@ -95,11 +104,10 @@ class ApiService {
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return body;
     } else {
-      final message = body is Map && body['message'] != null
+      final message = body is Map && body.containsKey('message')
           ? body['message']
-          : 'Terjadi kesalahan (${response.statusCode})';
+          : 'Terjadi kesalahan sistem (${response.statusCode})';
       throw Exception(message);
     }
   }
 }
-

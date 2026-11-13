@@ -11,6 +11,8 @@ class AdminProvider extends ChangeNotifier {
   List<User> _recentUsers = [];
   List<dynamic> _recentTransactions = [];
   List<Category> _masterCategories = [];
+  int _masterCount = 0;
+  int _customCount = 0;
   List<dynamic> _auditTransactions = [];
 
   bool _isLoading = false;
@@ -21,6 +23,8 @@ class AdminProvider extends ChangeNotifier {
   List<User> get recentUsers => _recentUsers;
   List<dynamic> get recentTransactions => _recentTransactions;
   List<Category> get masterCategories => _masterCategories;
+  int get masterCount => _masterCount;
+  int get customCount => _customCount;
   List<dynamic> get auditTransactions => _auditTransactions;
 
   bool get isLoading => _isLoading;
@@ -159,27 +163,53 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  // 3. Master Categories Management
-  Future<void> fetchMasterCategories({String? type}) async {
+  // 3. Categories Management (Master + Custom User)
+  Future<void> fetchMasterCategories({String? type, String scope = 'all', String? search}) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
       final queryParams = <String, String>{};
+      if (scope.isNotEmpty && scope != 'all') {
+        queryParams['scope'] = scope;
+      }
       if (type != null && type.isNotEmpty && type != 'all') {
         queryParams['type'] = type;
+      }
+      if (search != null && search.trim().isNotEmpty) {
+        queryParams['search'] = search.trim();
       }
 
       final res = await _api.get('/admin/categories', queryParams: queryParams.isNotEmpty ? queryParams : null);
       if (res['categories'] != null && res['categories'] is List) {
         _masterCategories = (res['categories'] as List).map((c) => Category.fromJson(c)).toList();
       }
+      _masterCount = res['master_count'] ?? 0;
+      _customCount = res['custom_count'] ?? 0;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<bool> promoteCategoryToMaster(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _api.post('/admin/categories/$id/promote', {});
+      await fetchMasterCategories();
+      await fetchDashboard();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
   }
 

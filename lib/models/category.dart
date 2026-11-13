@@ -1,5 +1,8 @@
 class Category {
   final int id;
+  final int? userId;
+  final String? userName;
+  final String? userEmail;
   final int? parentId;
   final String name;
   final String type; // income, expense
@@ -10,6 +13,9 @@ class Category {
 
   Category({
     required this.id,
+    this.userId,
+    this.userName,
+    this.userEmail,
     this.parentId,
     required this.name,
     required this.type,
@@ -19,12 +25,24 @@ class Category {
     this.children = const [],
   });
 
+  bool get isMaster => userId == null;
+
   factory Category.fromJson(Map<String, dynamic> json) {
     var rawChildren = json['children'] as List<dynamic>? ?? [];
     List<Category> parsedChildren = rawChildren.map((c) => Category.fromJson(c)).toList();
 
+    String? userName;
+    String? userEmail;
+    if (json['user'] != null && json['user'] is Map<String, dynamic>) {
+      userName = json['user']['name'];
+      userEmail = json['user']['email'];
+    }
+
     return Category(
       id: json['id'] is int ? json['id'] : int.parse(json['id'].toString()),
+      userId: json['user_id'] != null ? int.tryParse(json['user_id'].toString()) : null,
+      userName: userName,
+      userEmail: userEmail,
       parentId: json['parent_id'] != null ? int.tryParse(json['parent_id'].toString()) : null,
       name: json['name'] ?? '',
       type: json['type'] ?? 'expense',
@@ -35,4 +53,3 @@ class Category {
     );
   }
 }
-

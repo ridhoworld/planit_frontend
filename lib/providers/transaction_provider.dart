@@ -87,9 +87,9 @@ class TransactionProvider extends ChangeNotifier {
       final List<dynamic> exp = catRes['expense'] ?? [];
       final List<dynamic> flat = catRes['flat'] ?? [];
 
-      _incomeCategories = inc.map((c) => Category.fromJson(c)).toList();
-      _expenseCategories = exp.map((c) => Category.fromJson(c)).toList();
       _allCategories = flat.map((c) => Category.fromJson(c)).toList();
+      _incomeCategories = _allCategories.where((c) => c.type == 'income').toList();
+      _expenseCategories = _allCategories.where((c) => c.type == 'expense').toList();
 
       final tagRes = await _api.get('/tags');
       final List<dynamic> rawTags = tagRes['tags'] ?? [];

@@ -41,8 +41,37 @@ void main() async {
   );
 }
 
-class PlanItApp extends StatelessWidget {
+class PlanItApp extends StatefulWidget {
   const PlanItApp({super.key});
+
+  @override
+  State<PlanItApp> createState() => _PlanItAppState();
+}
+
+class _PlanItAppState extends State<PlanItApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    final auth = context.read<AuthProvider>();
+
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      auth.onAppBackgrounded();
+    } else if (state == AppLifecycleState.resumed) {
+      auth.onAppResumed();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

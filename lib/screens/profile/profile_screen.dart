@@ -199,6 +199,77 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _openAutoLockDialog() {
+    final auth = context.read<AuthProvider>();
+    final current = auth.autoLockMinutes;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Batas Waktu Kunci Otomatis', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Aplikasi akan otomatis mengakhiri sesi dan meminta login kembali jika aplikasi ditutup atau tidak aktif sesuai durasi berikut:',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 12),
+            _buildLockOption(ctx, 1, '1 Menit (Paling Aman)', current),
+            _buildLockOption(ctx, 3, '3 Menit (Direkomendasikan)', current),
+            _buildLockOption(ctx, 5, '5 Menit', current),
+            _buildLockOption(ctx, 0, 'Segera saat ditutup / beralih layar', current),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tutup'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLockOption(BuildContext ctx, int minutes, String label, int current) {
+    final isSelected = current == minutes;
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        label,
+        style: TextStyle(
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          fontSize: 13,
+          color: isSelected ? AppTheme.primaryColor : null,
+        ),
+      ),
+      leading: Radio<int>(
+        value: minutes,
+        groupValue: current,
+        activeColor: AppTheme.primaryColor,
+        onChanged: (val) {
+          if (val != null) {
+            context.read<AuthProvider>().setAutoLockMinutes(val);
+            Navigator.pop(ctx);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Auto-lock diatur ke: $label')),
+            );
+          }
+        },
+      ),
+      onTap: () {
+        context.read<AuthProvider>().setAutoLockMinutes(minutes);
+        Navigator.pop(ctx);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Auto-lock diatur ke: $label')),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
@@ -369,6 +440,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   subtitle: const Text('Perbarui kata sandi akun Anda', style: TextStyle(fontSize: 12, color: Color(0xFF64748B))),
                   trailing: const Icon(Icons.chevron_right, size: 20),
                   onTap: _openChangePasswordDialog,
+                ),
+                const Divider(height: 1, indent: 56),
+                ListTile(
+                  leading: const Icon(Icons.timer_outlined, color: Color(0xFF475569)),
+                  title: const Text('Kunci Otomatis (Auto-Lock)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  subtitle: Text(
+                    auth.autoLockMinutes == 0
+                        ? 'Segera saat aplikasi ditutup'
+                        : 'Logout otomatis setelah ${auth.autoLockMinutes} menit inaktif',
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, size: 20),
+                  onTap: _openAutoLockDialog,
                 ),
               ],
             ),
