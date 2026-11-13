@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../providers/account_provider.dart';
+import '../../providers/ai_provider.dart';
 import '../../providers/dashboard_provider.dart';
 import '../../providers/transaction_provider.dart';
 
@@ -253,6 +255,141 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
     );
   }
 
+  void _pickAndScanReceipt() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Pindai Struk / Bukti Pembayaran AI',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'AI akan membaca foto struk belanja atau screenshot m-Banking/QRIS untuk mengisi nominal & kategori otomatis.',
+                style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 18),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.camera_alt_outlined, color: Colors.blue),
+                ),
+                title: const Text('Ambil Foto Struk (Kamera)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('Foto langsung struk kasir atau struk ATM', style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _processImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
+                  child: const Icon(Icons.photo_library_outlined, color: Colors.purple),
+                ),
+                title: const Text('Pilih dari Galeri / Screenshot', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                subtitle: const Text('Screenshot bukti m-Banking / GoPay / QRIS', style: TextStyle(fontSize: 12)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _processImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _processImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(source: source, imageQuality: 80);
+      if (image == null) return;
+
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          content: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              children: [
+                CircularProgressIndicator(color: AppTheme.primaryColor),
+                SizedBox(width: 20),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Memindai Dokumen...', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                      SizedBox(height: 4),
+                      Text('AI sedang mengekstrak struk transaksi...', style: TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final result = await context.read<AiProvider>().scanReceipt(image);
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+      }
+
+      if (result != null && mounted) {
+        setState(() {
+          final amt = result['amount'];
+          if (amt != null) {
+            _amountController.text = amt.toString().replaceAll('.0', '');
+          }
+          if (result['type'] != null && (result['type'] == 'expense' || result['type'] == 'income')) {
+            _type = result['type'];
+          }
+          if (result['suggested_category_id'] != null) {
+            _selectedCategoryId = int.tryParse(result['suggested_category_id'].toString()) ?? _selectedCategoryId;
+          }
+          final merchant = result['merchant'] ?? '';
+          final notes = result['notes'] ?? '';
+          _notesController.text = "$merchant $notes".trim();
+
+          if (result['date'] != null) {
+            _selectedDate = DateTime.tryParse(result['date']) ?? _selectedDate;
+          }
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✨ Berhasil memindai struk: ${result['merchant'] ?? 'Transaksi'}!'),
+            backgroundColor: AppTheme.incomeColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memindai: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final accProvider = context.watch<AccountProvider>();
@@ -287,6 +424,61 @@ class _AddTransactionModalState extends State<AddTransactionModal> {
                 decoration: BoxDecoration(
                   color: isDark ? const Color(0xFF475569) : Colors.grey.shade300,
                   borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+
+            // AI Scan Receipt Button
+            Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              child: InkWell(
+                onTap: _pickAndScanReceipt,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: isDark
+                          ? [const Color(0xFF0F766E).withOpacity(0.4), const Color(0xFF1E3A8A).withOpacity(0.4)]
+                          : [const Color(0xFFCCFBF1), const Color(0xFFDBEAFE)],
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF14B8A6).withOpacity(0.4) : const Color(0xFF5EEAD4),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor,
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: const Icon(Icons.document_scanner_outlined, color: Colors.white, size: 18),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Pindai Struk / Bukti Transfer AI',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Text(
+                              'Ekstrak nominal, toko, & kategori otomatis',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF475569),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.auto_awesome, color: AppTheme.primaryLight, size: 18),
+                    ],
+                  ),
                 ),
               ),
             ),

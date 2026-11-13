@@ -83,8 +83,6 @@ class TransactionProvider extends ChangeNotifier {
   Future<void> fetchCategoriesAndTags() async {
     try {
       final catRes = await _api.get('/categories');
-      final List<dynamic> inc = catRes['income'] ?? [];
-      final List<dynamic> exp = catRes['expense'] ?? [];
       final List<dynamic> flat = catRes['flat'] ?? [];
 
       _allCategories = flat.map((c) => Category.fromJson(c)).toList();

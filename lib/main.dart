@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 import 'providers/account_provider.dart';
 import 'providers/admin_provider.dart';
+import 'providers/ai_provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/budget_provider.dart';
 import 'providers/dashboard_provider.dart';
@@ -35,6 +36,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => PlanningProvider()),
         ChangeNotifierProvider(create: (_) => ReportProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
+        ChangeNotifierProvider(create: (_) => AiProvider()),
       ],
       child: const PlanItApp(),
     ),
